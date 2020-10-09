@@ -22,17 +22,10 @@ function parse_commandline()
             help = "Regularization constant."
             arg_type = Float64
             default = 1.0e-8
-        "--isf_m_type"
-            help = "Name of function to get intermediate scattering function."
-            arg_type = String
-            default = "simps"
         "--save_file_dir"
             help = "Directory to save results in."
             arg_type = String
             default = "./fesomresults"
-        "--tramanto"
-            help = "Modify intial dsf and default dsf using tramanto method."
-            action = :store_true
         "--seed"
             help = "Seed to pass to random number generator."
             arg_type = Int64
@@ -50,20 +43,6 @@ function parse_commandline()
     return parse_args(s)
 end
 
-function checkMoves(argname::String,s::Array{String,1},l::Array{String,1})
-    for ss in s
-        checkMoves(argname,ss,l)
-    end
-end
-function checkMoves(argname::String,s::String,l::Array{String,1})
-    if !(s in l)
-        print("$s is not a valid parameter for $argname. Valid parameters are: ")
-        println(l)
-        error("Failed to validate argument: $argname")
-    end
-nothing
-end
-
 function main()
     start = time();
     parsed_args = parse_commandline()
@@ -75,9 +54,6 @@ function main()
         nothing
     end
     save_dir = parsed_args["save_file_dir"];
-    #FIXME
-    #checkMoves("isf_m_type",parsed_args["isf_m_type"],FESOM.FESOM_model_isf.functionNames)
-
 
     _ext = splitext(parsed_args["qmc_data"])[2];
     if _ext == ".npz"
@@ -102,9 +78,6 @@ function main()
     dsf = dsfdata["dsf"];
     frequency_bins = dsfdata["frequency"];
 
-    if parsed_args["tramanto"]
-        dsf .*= (1 .+ exp.(-(1/parsed_args["temperature"]) .* frequency_bins))
-    end
     initial_dsf = copy(dsf);
 
     u4 = uuid4();
@@ -113,7 +86,6 @@ function main()
     rng,dsf_result,fitness, minimum_fitness = FESOM.fesom(rng,dsf,isf,isf_error,
                                                           frequency_bins,imaginary_time,
                                                           temperature = parsed_args["temperature"],
-                                                          isf_m_type = parsed_args["isf_m_type"],
                                                           number_of_iterations = parsed_args["number_of_iterations"],
                                                           stop_minimum_fitness = parsed_args["stop_minimum_fitness"]);
     elapsed = time() - start;
@@ -124,6 +96,7 @@ function main()
          "u4",u4,
          "dsf",dsf_result,
          "frequency",frequency_bins,
+         "fitness",fitness,
          "elapsed_time",elapsed);
     filename = "$(save_dir)/fesom_stats_$(seed)_$u4.jld";
     println("Saving stats to $filename");
@@ -138,11 +111,11 @@ function main()
          "imaginary_time",imaginary_time,
          "isf",isf,
          "isf_error",isf_error,
+         "dsf",dsf_result,
          "frequency",frequency_bins,
          "initial_dsf",initial_dsf,
          "number_of_iterations",parsed_args["number_of_iterations"],
          "temperature",parsed_args["temperature"],
-         "isf_m_type",parsed_args["isf_m_type"],
          "stop_minimum_fitness",parsed_args["stop_minimum_fitness"],
          "seed",parsed_args["seed"])
     nothing

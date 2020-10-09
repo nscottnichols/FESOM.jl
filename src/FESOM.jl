@@ -4,63 +4,95 @@ using Random
 using Statistics
 using LinearAlgebra
 
-include("./FESOM_model_isf.jl")
-
 export fesom
 
 function quality_of_fit(isf_m::Array{Float64,1},isf::Array{Float64,1},isf_error::Array{Float64,1})
-    mean(broadcast((x,y,z) -> abs(x - y)/z,isf,isf_m,isf_error))
+    mean(broadcast((x,y,z) -> ((x - y)/z)^2,isf,isf_m,isf_error))
 end
 
 function quality_of_fit!(isf_m::Array{Float64,1},isf::Array{Float64,1},isf_error::Array{Float64,1})
-    mean(broadcast!((x,y,z) -> abs(x - y)/z,isf_m,isf,isf_m,isf_error))
+    mean(broadcast!((x,y,z) -> ((x - y)/z)^2,isf_m,isf,isf_m,isf_error))
+end
+
+function set_isf_term(imaginary_time::Array{Float64,1},frequency_bins::Array{Float64,1},beta::Float64)
+    b = beta;
+    isf_term = Array{Float64,2}(undef,size(imaginary_time,1),size(frequency_bins,1));
+    for i in 1:size(imaginary_time,1)
+        t = imaginary_time[i];
+        for j in 1:size(frequency_bins,1)
+            f = frequency_bins[j];
+            isf_term[i,j] = (exp(-t*f) + exp(-(b - t)*f));
+        end
+    end
+    isf_term
+end
+
+function set_isf_trapezoidal!( isf_m::Array{Float64,1}, isf_m2::Array{Float64,1},
+                               isf_term::Array{Float64,2}, isf_term2::Array{Float64,2},
+                               dsf::Array{Float64,1} 
+                               )
+    mul!(isf_m,isf_term,dsf);
+    mul!(isf_m2,isf_term2,dsf);
+    isf_m .+= isf_m2;
+    nothing
 end
 
 function fesom( dsf::Array{Float64,1},isf::Array{Float64,1},isf_error::Array{Float64,1},
-                frequency_bins::Array{Float64,1},imaginary_time::Array{Float64,1};
+                frequency::Array{Float64,1},imaginary_time::Array{Float64,1};
                 temperature::Float64 = 1.2,
-                isf_m_type::String="simps",
-                number_of_iterations::Int64=1000,
-                stop_minimum_fitness::Float64 = 1.0e-8,
+                number_of_iterations::Int64=10000,
+                stop_minimum_fitness::Float64 = 1.0,
                 seed::Int64=1)
     rng = MersenneTwister(seed);
-    fesom(rng,dsf,isf,isf_error,frequency_bins,imaginary_time,
+    fesom(rng,dsf,isf,isf_error,frequency,imaginary_time,
           temperature=temperature,
-          isf_m_type=isf_m_type,
           number_of_iterations=number_of_iterations,
           stop_minimum_fitness=stop_minimum_fitness)
 end
 
 function fesom( rng::MersenneTwister,
                 dsf::Array{Float64,1},isf::Array{Float64,1},isf_error::Array{Float64,1},
-                frequency_bins::Array{Float64,1},imaginary_time::Array{Float64,1};
+                frequency::Array{Float64,1},imaginary_time::Array{Float64,1};
                 temperature::Float64 = 1.2,
-                isf_m_type::String="simps",
-                number_of_iterations::Int64=1000,
-                stop_minimum_fitness::Float64 = 1.0e-8)
+                number_of_iterations::Int64=10000,
+                stop_minimum_fitness::Float64 = 1.0)
     beta = 1/temperature;
     moment0 = isf[1];
-    isf_m_function = getfield(FESOM_model_isf, Symbol(isf_m_type));
     random_vector = Array{Float64,1}(undef,size(dsf,1));
     dsf_new = Array{Float64,1}(undef,size(dsf,1));
-    isf_m = Array{Float64,1}(undef,size(isf,1));
 
-    isf_m_function(isf_m,dsf,frequency_bins,imaginary_time,beta);
+    isf_term = set_isf_term(imaginary_time,frequency,beta);
+    isf_term2 = copy(isf_term);
+
+    df = frequency[2:end] .- frequency[1:size(frequency,1) - 1];
+    dfrequency1 = zeros(size(frequency,1));
+    dfrequency2 = zeros(size(frequency,1));
+    for i in 1:(size(frequency,1) - 1)
+        dfrequency1[i] = df[i]/2
+        dfrequency2[i+1] = df[i]/2
+    end
+    isf_term .*= dfrequency1';
+    isf_term2 .*= dfrequency2';
+    
+    isf_m = Array{Float64,1}(undef,size(isf,1));
+    isf_m2 = Array{Float64,1}(undef,size(isf,1));
+
+    set_isf_trapezoidal!(isf_m, isf_m2, isf_term, isf_term2, dsf );
 
     χ2 = quality_of_fit!(isf_m,isf,isf_error);
     χ2_new = 0.0;
     normalization = 1.0;
     minimum_fitness = zeros(number_of_iterations);
+    nsteps = 1;
     for i in 1:number_of_iterations
-
         randn!(rng,random_vector);
         broadcast!((x,y) -> abs(x*(1 + y)),dsf_new, dsf, random_vector);
 
         #normalization: store intermediate results in random_vector
-        normalization = FESOM_model_isf.simps(dsf_new,frequency_bins);
+        normalization = dot(dsf_new,dfrequency1) + dot(dsf_new,dfrequency2);
         broadcast!(*,dsf_new, dsf_new, moment0/normalization);
 
-        isf_m_function(isf_m,dsf_new,frequency_bins,imaginary_time,beta);
+        set_isf_trapezoidal!(isf_m, isf_m2, isf_term, isf_term2, dsf_new );
 
         χ2_new = quality_of_fit!(isf_m,isf,isf_error);
         if χ2_new < χ2
@@ -68,8 +100,12 @@ function fesom( rng::MersenneTwister,
             χ2_new, χ2 = χ2, χ2_new;
         end
         minimum_fitness[i] = χ2;
+        if χ2 < stop_minimum_fitness
+            nsteps = i;
+            break
+        end
     end
-    rng,dsf,χ2,minimum_fitness
+    rng,dsf,χ2,minimum_fitness[1:nsteps]
 end
 end
 
