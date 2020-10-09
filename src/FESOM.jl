@@ -42,7 +42,8 @@ function fesom( dsf::Array{Float64,1},isf::Array{Float64,1},isf_error::Array{Flo
                 temperature::Float64 = 1.2,
                 number_of_iterations::Int64=10000,
                 stop_minimum_fitness::Float64 = 1.0,
-                seed::Int64=1)
+                seed::Int64=1,
+                track_stats::Bool=false)
     rng = MersenneTwister(seed);
     fesom(rng,dsf,isf,isf_error,frequency,imaginary_time,
           temperature=temperature,
@@ -55,7 +56,8 @@ function fesom( rng::MersenneTwister,
                 frequency::Array{Float64,1},imaginary_time::Array{Float64,1};
                 temperature::Float64 = 1.2,
                 number_of_iterations::Int64=10000,
-                stop_minimum_fitness::Float64 = 1.0)
+                stop_minimum_fitness::Float64 = 1.0,
+                track_stats::Bool=false)
     beta = 1/temperature;
     moment0 = isf[1];
     random_vector = Array{Float64,1}(undef,size(dsf,1));
@@ -82,7 +84,9 @@ function fesom( rng::MersenneTwister,
     χ2 = quality_of_fit!(isf_m,isf,isf_error);
     χ2_new = 0.0;
     normalization = 1.0;
-    minimum_fitness = zeros(number_of_iterations);
+    if track_stats
+        minimum_fitness = zeros(number_of_iterations);
+    end
     nsteps = 1;
     for i in 1:number_of_iterations
         randn!(rng,random_vector);
@@ -99,13 +103,20 @@ function fesom( rng::MersenneTwister,
             dsf_new, dsf = dsf, dsf_new;
             χ2_new, χ2 = χ2, χ2_new;
         end
-        minimum_fitness[i] = χ2;
+        if track_stats
+            minimum_fitness[i] = χ2;
+        end
         if χ2 < stop_minimum_fitness
             nsteps = i;
             break
         end
     end
-    rng,dsf,χ2,minimum_fitness[1:nsteps]
+    if track_stats
+        return rng,dsf,χ2,minimum_fitness[1:nsteps]
+    else
+        return rng,dsf,χ2,zeros(2)
+    end
+    
 end
 end
 

@@ -30,6 +30,9 @@ function parse_commandline()
             help = "Seed to pass to random number generator."
             arg_type = Int64
             default = 1
+        "--track_stats"
+            help = "Track minimum fitness."
+            action = :store_true
         "qmc_data"
             help = "*.npz or *.jld file containing quantum Monte Carlo data with columns: IMAGINARY_TIME, INTERMEDIATE_SCATTERING_FUNCTION, ERROR"
             arg_type = String
@@ -87,7 +90,8 @@ function main()
                                                           frequency_bins,imaginary_time,
                                                           temperature = parsed_args["temperature"],
                                                           number_of_iterations = parsed_args["number_of_iterations"],
-                                                          stop_minimum_fitness = parsed_args["stop_minimum_fitness"]);
+                                                          stop_minimum_fitness = parsed_args["stop_minimum_fitness"],
+                                                          track_stats=parsed_args["track_stats"]);
     elapsed = time() - start;
     seed = lpad(parsed_args["seed"],4,'0');
     filename = "$(save_dir)/fesom_results_$(seed)_$u4.jld";
@@ -99,10 +103,14 @@ function main()
          "fitness",fitness,
          "elapsed_time",elapsed);
     filename = "$(save_dir)/fesom_stats_$(seed)_$u4.jld";
-    println("Saving stats to $filename");
-    save(filename,
-         "u4",u4,
-         "minimum_fitness",minimum_fitness);
+
+    if parsed_args["track_stats"]
+        println("Saving stats to $filename");
+        save(filename,
+             "u4",u4,
+             "minimum_fitness",minimum_fitness);
+    end
+
     filename = "$(save_dir)/fesom_params_$(seed)_$u4.jld";
     println("Saving parameters to $filename");
     save(filename,
