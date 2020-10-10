@@ -40,15 +40,17 @@ end
 function fesom( dsf::Array{Float64,1},isf::Array{Float64,1},isf_error::Array{Float64,1},
                 frequency::Array{Float64,1},imaginary_time::Array{Float64,1};
                 temperature::Float64 = 1.2,
-                number_of_iterations::Int64=10000,
+                number_of_iterations::Int64 = 10000,
                 stop_minimum_fitness::Float64 = 1.0,
-                seed::Int64=1,
-                track_stats::Bool=false)
+                seed::Int64 = 1,
+                track_stats::Bool = false,
+                number_of_blas_threads::Int64 = 0)
     rng = MersenneTwister(seed);
     fesom(rng,dsf,isf,isf_error,frequency,imaginary_time,
-          temperature=temperature,
-          number_of_iterations=number_of_iterations,
-          stop_minimum_fitness=stop_minimum_fitness)
+          temperature = temperature,
+          number_of_iterations = number_of_iterations,
+          stop_minimum_fitness = stop_minimum_fitness,
+          number_of_blas_threads = number_of_blas_threads)
 end
 
 function fesom( rng::MersenneTwister,
@@ -57,7 +59,14 @@ function fesom( rng::MersenneTwister,
                 temperature::Float64 = 1.2,
                 number_of_iterations::Int64=10000,
                 stop_minimum_fitness::Float64 = 1.0,
-                track_stats::Bool=false)
+                track_stats::Bool = false,
+                number_of_blas_threads::Int64 = 0)
+    #_bts = ccall((:openblas_get_num_threads64_, Base.libblas_name), Cint, ())
+    #println("Number of BLAS threads: $(_bts)");
+    if number_of_blas_threads > 0
+        LinearAlgebra.BLAS.set_num_threads(number_of_blas_threads)
+    end
+
     beta = 1/temperature;
     moment0 = isf[1];
     random_vector = Array{Float64,1}(undef,size(dsf,1));

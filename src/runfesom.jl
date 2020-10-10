@@ -30,6 +30,10 @@ function parse_commandline()
             help = "Seed to pass to random number generator."
             arg_type = Int64
             default = 1
+        "--number_of_blas_threads"
+            help = "Number of BLAS threads to utilize if > 0 otherwise uses Julia default value."
+            arg_type = Int64
+            default = 0
         "--track_stats"
             help = "Track minimum fitness."
             action = :store_true
@@ -91,7 +95,8 @@ function main()
                                                           temperature = parsed_args["temperature"],
                                                           number_of_iterations = parsed_args["number_of_iterations"],
                                                           stop_minimum_fitness = parsed_args["stop_minimum_fitness"],
-                                                          track_stats=parsed_args["track_stats"]);
+                                                          track_stats = parsed_args["track_stats"],
+                                                          number_of_blas_threads = parsed_args["number_of_blas_threads"])
     elapsed = time() - start;
     seed = lpad(parsed_args["seed"],4,'0');
     filename = "$(save_dir)/fesom_results_$(seed)_$u4.jld";
