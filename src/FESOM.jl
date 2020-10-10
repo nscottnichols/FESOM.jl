@@ -83,7 +83,7 @@ function fesom( rng::MersenneTwister,
     χ2_new = 0.0;
     normalization = 1.0;
     minimum_fitness = zeros(number_of_iterations);
-    nsteps = 1;
+    nsteps = 0;
     for i in 1:number_of_iterations
         randn!(rng,random_vector);
         broadcast!((x,y) -> abs(x*(1 + y)),dsf_new, dsf, random_vector);
@@ -100,8 +100,8 @@ function fesom( rng::MersenneTwister,
             χ2_new, χ2 = χ2, χ2_new;
         end
         minimum_fitness[i] = χ2;
+        nsteps +=1 ;
         if χ2 < stop_minimum_fitness
-            nsteps = i;
             break
         end
     end
