@@ -89,7 +89,8 @@ function main()
 
     u4 = uuid4();
     rng = MersenneTwister(parsed_args["seed"]);
-
+    beta = 1/parsed_args["temperature"];
+    dsf .*= (1 .+ exp.(-beta .* frequency_bins));
     rng,dsf_result,fitness, minimum_fitness = FESOM.fesom(rng,dsf,isf,isf_error,
                                                           frequency_bins,imaginary_time,
                                                           temperature = parsed_args["temperature"],

@@ -21,7 +21,8 @@ function set_isf_term(imaginary_time::Array{Float64,1},frequency_bins::Array{Flo
         t = imaginary_time[i];
         for j in 1:size(frequency_bins,1)
             f = frequency_bins[j];
-            isf_term[i,j] = (exp(-t*f) + exp(-(b - t)*f));
+            #isf_term[i,j] = (exp(-t*f) + exp(-(b - t)*f));
+            isf_term[i,j] = (exp(-t*f) + exp(-(b - t)*f))/(1 + exp(-b*f));
         end
     end
     isf_term
@@ -124,6 +125,7 @@ function fesom( rng::MersenneTwister,
             break
         end
     end
+    println(χ2)
 
     if track_stats
         return rng,dsf,χ2,minimum_fitness[1:nsteps]
