@@ -21,8 +21,8 @@ function set_isf_term(imaginary_time::Array{Float64,1},frequency_bins::Array{Flo
         t = imaginary_time[i];
         for j in 1:size(frequency_bins,1)
             f = frequency_bins[j];
-            #isf_term[i,j] = (exp(-t*f) + exp(-(b - t)*f));
-            isf_term[i,j] = (exp(-t*f) + exp(-(b - t)*f))/(1 + exp(-b*f));
+            isf_term[i,j] = (exp(-t*f) + exp(-(b - t)*f));
+            #isf_term[i,j] = (exp(-t*f) + exp(-(b - t)*f))/(1 + exp(-b*f));
         end
     end
     isf_term
@@ -94,6 +94,9 @@ function fesom( rng::MersenneTwister,
     χ2 = quality_of_fit!(isf_m,isf,isf_error);
     χ2_new = 0.0;
     normalization = 1.0;
+    normalization_term1 = (1 .+ exp.(-beta .* frequency)) .* dfrequency1; 
+    normalization_term2 = (1 .+ exp.(-beta .* frequency)) .* dfrequency2; 
+    normalization_term = normalization_term1 .+ normalization_term2;
 
     if track_stats
         minimum_fitness = zeros(number_of_iterations);
@@ -104,7 +107,7 @@ function fesom( rng::MersenneTwister,
         broadcast!((x,y) -> abs(x*(1 + y)),dsf_new, dsf, random_vector);
 
         #normalization: store intermediate results in random_vector
-        normalization = dot(dsf_new,dfrequency1) + dot(dsf_new,dfrequency2);
+        normalization = dot(dsf_new,normalization_term);
         broadcast!(*,dsf_new, dsf_new, moment0/normalization);
 
         set_isf_trapezoidal!(isf_m, isf_m2, isf_term, isf_term2, dsf_new );
